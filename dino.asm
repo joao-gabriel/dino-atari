@@ -34,11 +34,11 @@ DinoBitmapChooseEnd
 
 HandleDinoJump
 
-  lda DinoVerticalVelocity
+  	lda DinoVerticalVelocity
 	adc DinoVerticalPos
 	sta DinoVerticalPos
 	
-	lda #65
+	lda #55
 	adc DinoVerticalDelay
 	cmp #$ff
 	bvc DontAdjustVerticalVelocity

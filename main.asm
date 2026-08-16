@@ -9,17 +9,11 @@
 ;
 ; ****************************************************************************
 
-
 	processor 6502
-	include includes/vcs.h
-	include includes/macro.h
+	include "includes/vcs.h"
+	include "includes/macro.h"
 
 	org $F000
-
-
-Start
-	
-	CLEAN_START
 
 ; Variables	
 DinoVerticalVelocity = $80
@@ -27,19 +21,22 @@ DinoVerticalPos = $81
 DinoVerticalDelay = $82
 DinoBitmapBuffer = $83
 DinoLineBeingDraw = $84
-DinoBitmapLocation = $85 ; it takes 2 bytes
-VarButtonLock = $87;
+DinoBitmapLocation = $85 ; ocupa 2 bytes
+VarButtonLock = $87
 DinoAnimateSpriteBitmap = $88
 DinoAnimateSpriteDelay = $89
 CactusBitmapBuffer = $8A
 CactusLineBeingDraw = $8B
 Seed = $8C 
-Helper = $8D ; TODO: D0 = Game Start, D1 = Show Cactus, D2 = Show bird 
+Helper = $8D 
 CactusHorizontalPos = $8E
 
 ; Constants
 GroundVerticalPos = 65
 DinoAnimateSpriteFramesDelay = 8
+
+Start
+	CLEAN_START
 	
 	lda #$9C
 	sta COLUBK
@@ -70,8 +67,26 @@ DinoAnimateSpriteFramesDelay = 8
 
 	sta WSYNC
 	sta RESP1
-	SLEEP 30
+	sta RESP1
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
 	sta RESP0
+
+	lda #$02
+	sta NUSIZ1
 
 FrameLoop
 
@@ -105,8 +120,8 @@ DontResetCactusHorizontalPos
 	cmp #160
 	bne DontChangeCactusPattern
 	
-	lda Seed
-	sta NUSIZ1
+	;lda Seed
+	;sta NUSIZ1
 
 DontChangeCactusPattern
 
@@ -129,8 +144,8 @@ ScanlineLoop
 	lda CactusBitmapBuffer
 	sta GRP1
 
-  lda #0
-  sta DinoBitmapBuffer
+	lda #0
+	sta DinoBitmapBuffer
 	sta CactusBitmapBuffer
 
 	cpy DinoVerticalPos
@@ -141,12 +156,12 @@ ScanlineLoop
 
 SkipDinoDrawBegin
 
-  tya
-  tax
+	tya
+	tax
 	ldy DinoLineBeingDraw
 	beq FinishDraw
 
-  lda (DinoBitmapLocation),Y
+	lda (DinoBitmapLocation),Y
 	sta DinoBitmapBuffer
 	dec DinoLineBeingDraw
 	
@@ -154,8 +169,8 @@ FinishDraw
 
 	sta WSYNC
 
-  txa
-  tay
+	txa
+	tay
   
 	cpy #GroundVerticalPos
 	bne SkipCactusDrawBegin
@@ -165,8 +180,8 @@ FinishDraw
 
 SkipCactusDrawBegin  
   
-  ldx CactusLineBeingDraw
-  beq CactusFinishDraw
+	ldx CactusLineBeingDraw
+	beq CactusFinishDraw
 
 	lda Cactus,X
 	sta CactusBitmapBuffer
@@ -207,8 +222,8 @@ OverScanWait
 	
 	jmp FrameLoop
 
-	include dino.asm
-	include data/bitmaps.asm
+	include "dino.asm"
+	include "data/bitmaps.asm"
 	
 	org $FFFC
 	.word Start
