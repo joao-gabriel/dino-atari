@@ -38,7 +38,7 @@ HandleDinoJump
 	adc DinoVerticalPos
 	sta DinoVerticalPos
 	
-	lda #55
+	lda #63
 	adc DinoVerticalDelay
 	cmp #$ff
 	bvc DontAdjustVerticalVelocity

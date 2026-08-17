@@ -21,7 +21,7 @@ DinoAnimateSpriteDelay = $89
 CactusBitmapBuffer = $8A
 CactusLineBeingDraw = $8B
 Seed = $8C 
-Helper = $8D                    ; bit 0 = sorteia outro padrão (0 = não, 1 = sim)
+Helper = $8D                    
 CactusHorizontalPos = $8E
 CactusActivePattern = $8F       ; Cópia do padrão atual (NUSIZ1 é write-only, não dá pra ler de volta)
 CactusDesiredPattern = $90      ; Padrão que foi sorteado (nem sempre é o que está sendo enviado ao TIA)
@@ -134,7 +134,42 @@ Not2CopiesMediumLeaving
 
 Not3CopiesMediumLeaving
 
+        ;O padrão ativo são 2 cópias distância longa (64 clocks)?
+        lda CactusActivePattern
+        cmp #04
+        bne Not2CopiesLongLeaving
+
+        ; Muda para 1 cópia apenas
+        lda #0
+        sta CactusActivePattern
+
+        ; Move o cacto para a esquerda a distância longa (64 clocks)
+        lda #64
+        sta CactusHorizontalPos
+        jmp DontResetCactusHorizontalPos
+
+Not2CopiesLongLeaving
+
+        ;O padrão ativo é o Cacto Grande (tamanho dobrado, cópia única)?
+        lda CactusActivePattern
+        cmp #05
+        bne Not1BigCactusLeaving
+
+        ; Volta para o cacto normal (1 cópia, tamanho padrão)
+        lda #0
+        sta CactusActivePattern
+
+Not1BigCactusLeaving
+
         jsr SelectCactusDesiredPattern
+
+        ; Se o padrão sorteado for o Cacto Grande (cópia única, tamanho dobrado),
+        ; ativa imediatamente: não há cópias extras para esperar entrar em tela
+        lda CactusDesiredPattern
+        cmp #05
+        bne NotBigCactusImmediate
+        sta CactusActivePattern
+NotBigCactusImmediate
 
 DontResetCactusHorizontalPos
 
@@ -154,6 +189,22 @@ DontResetCactusHorizontalPos
 
 Not2CopiesMedium
 
+        ; O padrão desejado do cacto é 2 cópias, distância longa (64 clocks)?
+        lda CactusDesiredPattern
+        cmp #04
+        bne Not2CopiesLong
+
+        ; Sim? verifica se a posição horizontal do cacto já permite exibir a segunda cópia
+        ; (aqui a distância é o dobro da média, por isso o limiar é $57/87 em vez de $77/119)
+        lda CactusHorizontalPos
+        cmp #$57                        ; 87
+        bne Not2CopiesLong
+
+        ; Sim, duplica o Player1
+        lda CactusDesiredPattern
+        sta CactusActivePattern
+
+Not2CopiesLong
 
         ; O Padrão desejado do cacto são 3 cópias, média distância?
         lda CactusDesiredPattern
@@ -342,8 +393,8 @@ SetHorizPosLoop
 SelectCactusDesiredPattern
     inc Seed                 ; Avança a seed
     lda Seed                 ; Pega o novo valor da seed
-    and #$03                 ; Mantém apenas os 2 bits menos significativos (0-3)
-    tax                      ; Índice de 0 a 3
+    and #$07                 ; Mantém apenas os 3 bits menos significativos (0-7)
+    tax                      ; Índice de 0 a 7
     lda CactusPatternTable,X ; Busca a configuração na tabela
     sta CactusDesiredPattern ; Guarda o padrão sorteado/desejado
     rts
@@ -355,12 +406,12 @@ SelectCactusDesiredPattern
 CactusPatternTable
 	.byte $00    ; Opção 0: 1 Cacto normal
 	.byte $02    ; Opção 1: 2 Cactos distância média (32 clocks)
-	;.byte $02    ; Opção 2: 2 Cactos distância média (32 clocks)
-	;.byte $05    ; Opção 3: 1 Cacto Grande (Tamanho 2x)
-	;.byte $07    ; Opção 4: 1 Cacto Gigante (Tamanho 4x)
-	;.byte $04    ; Opção 5: 2 Cactos distância longa (64 clocks)
+	.byte $05    ; Opção 3: 1 Cacto Grande (Tamanho 2x)
+	.byte $04    ; Opção 5: 2 Cactos distância longa (64 clocks)
 	.byte $06    ; Opção 6: 3 Cactos distância média (32 clocks)
 	.byte $06    ; Opção 6: 3 Cactos distância média (32 clocks)
+	.byte $00    ; Opção 0 (repetida - tabela ampliada para 8 entradas por causa do "and #$07")
+	.byte $02    ; Opção 1 (repetida - tabela ampliada para 8 entradas por causa do "and #$07")
 
 	include "dino.asm"
 	include "data/bitmaps.asm"

@@ -1,9 +1,10 @@
-------- FILE main_.asm LEVEL 1 PASS 2
+------- FILE dino_game.asm LEVEL 1 PASS 2
       1  10000 ????						; ****************************************************************************
-      2  10000 ????						; Jogo do Dino - Atari 2600 (Posição X do Dino Fixa)
-      3  10000 ????						; ****************************************************************************
-      4  10000 ????
-      5  10000 ????				       processor	6502
+      2  10000 ????						; Jogo do Dino - Atari 2600
+      3  10000 ????						; Aceleração gradual do Cacto
+      4  10000 ????						; ****************************************************************************
+      5  10000 ????
+      6  10000 ????				       processor	6502
 ------- FILE includes/vcs.h LEVEL 2 PASS 2
       0  10000 ????				       include	"includes/vcs.h"
       1  10000 ????						; VCS.H
@@ -206,7 +207,7 @@
     198  10000 ????				       SEG
     199  10000 ????
     200  10000 ????						; EOF
-------- FILE main_.asm
+------- FILE dino_game.asm
 ------- FILE includes/macro.h LEVEL 2 PASS 2
       0  10000 ????				       include	"includes/macro.h"
       1  10000 ????						; MACRO.H
@@ -355,33 +356,73 @@
     144  10000 ????				       ENDM
     145  10000 ????
     146  10000 ????						; EOF
-------- FILE main_.asm
-      8  10000 ????
-      9  f000					      org	$F000
-     10  f000
-     11  f000							; Variables
-     12  f000		       00 80	   DinoVerticalVelocity =	$80
-     13  f000		       00 81	   DinoVerticalPos =	$81
-     14  f000		       00 82	   DinoVerticalDelay =	$82
-     15  f000		       00 83	   DinoBitmapBuffer =	$83
-     16  f000		       00 84	   DinoLineBeingDraw =	$84
-     17  f000		       00 85	   DinoBitmapLocation =	$85	; ocupa 2 bytes
-     18  f000		       00 87	   VarButtonLock =	$87
-     19  f000		       00 88	   DinoAnimateSpriteBitmap =	$88
-     20  f000		       00 89	   DinoAnimateSpriteDelay =	$89
-     21  f000		       00 8a	   CactusBitmapBuffer =	$8A
-     22  f000		       00 8b	   CactusLineBeingDraw =	$8B
-     23  f000		       00 8c	   Seed       =	$8C
-     24  f000		       00 8d	   Helper     =	$8D	; bit 0 = sorteia outro padrão (0 = não, 1 = sim)
-     25  f000		       00 8e	   CactusHorizontalPos =	$8E
-     26  f000		       00 8f	   CactusActivePattern =	$8F	; Cópia do padrão atual (NUSIZ1 é write-only, não dá pra ler de volta)
-     27  f000		       00 90	   CactusDesiredPattern =	$90	; Padrão que foi sorteado (nem sempre é o que está sendo enviado ao TIA)
-     28  f000
-     29  f000							; Constants
-     30  f000		       00 41	   GroundVerticalPos =	65
-     31  f000		       00 08	   DinoAnimateSpriteFramesDelay =	8
-     32  f000
-     33  f000				   Start
+------- FILE dino_game.asm
+      9  10000 ????
+     10  f000					      org	$F000
+     11  f000
+     12  f000							; Variables
+     13  f000		       00 80	   DinoVerticalVelocity =	$80
+     14  f000		       00 81	   DinoVerticalPos =	$81
+     15  f000		       00 82	   DinoVerticalDelay =	$82
+     16  f000		       00 83	   DinoBitmapBuffer =	$83
+     17  f000		       00 84	   DinoLineBeingDraw =	$84
+     18  f000		       00 85	   DinoBitmapLocation =	$85	; ocupa 2 bytes
+     19  f000		       00 87	   VarButtonLock =	$87
+     20  f000		       00 88	   DinoAnimateSpriteBitmap =	$88
+     21  f000		       00 89	   DinoAnimateSpriteDelay =	$89
+     22  f000		       00 8a	   CactusBitmapBuffer =	$8A
+     23  f000		       00 8b	   CactusLineBeingDraw =	$8B
+     24  f000		       00 8c	   Seed       =	$8C
+     25  f000		       00 8d	   Helper     =	$8D
+     26  f000		       00 8e	   CactusHorizontalPos =	$8E
+     27  f000		       00 8f	   CactusActivePattern =	$8F
+     28  f000		       00 90	   CactusDesiredPattern =	$90
+     29  f000		       00 91	   PrevResetSwitch =	$91
+     30  f000
+     31  f000							; -------------------------------------------------------------------------
+     32  f000							; VELOCIDADE DO CACTO
+     33  f000							;
+     34  f000							; CactusSpeed é armazenado em QUARTOS de pixel por frame:
+     35  f000							;
+     36  f000							;   4	= 1,00 pixel/frame
+     37  f000							;   5	= 1,25 pixel/frame
+     38  f000							;   6	= 1,50 pixel/frame
+     39  f000							;   7	= 1,75 pixel/frame
+     40  f000							;   8	= 2,00 pixel/frame
+     41  f000							;   ...
+     42  f000							;   16 = 4,00 pixels/frame
+     43  f000							;
+     44  f000							; CactusMoveAccumulator acumula a parte fracionária.
+     45  f000							; CactusFrameMovement guarda quantos pixels serão percorridos
+     46  f000							; naquele frame específico.
+     47  f000							; -------------------------------------------------------------------------
+     48  f000
+     49  f000		       00 92	   CactusSpeed =	$92
+     50  f000		       00 93	   SpeedTimer =	$93
+     51  f000		       00 94	   CactusMoveAccumulator =	$94
+     52  f000		       00 95	   CactusFrameMovement =	$95
+     53  f000		       00 96	   CollisionState =	$96
+     54  f000		       00 97	   CollisionTimer =	$97
+     55  f000		       00 98	   SoundCounter =	$98
+     56  f000
+     57  f000							; Constants
+     58  f000		       00 41	   GroundVerticalPos =	65
+     59  f000		       00 08	   DinoAnimateSpriteFramesDelay =	8
+     60  f000		       00 02	   GameStartedFlag =	%00000010	; Bit 1 do Helper:
+     61  f000							; 0 = jogo parado
+     62  f000							; 1 = jogo rodando
+     63  f000
+     64  f000		       00 40	   MaxCactusSpeed =	64	; 24 quartos = 4,00 pixels/frame
+     65  f000
+     66  f000		       00 ff	   SpeedUpInterval =	255	; A cada 255 frames (4 segundos)
+     67  f000							; aumenta 0,25 pixel/frame
+     68  f000
+     69  f000		       00 10	   FramesToSkipMovement =	16
+     70  f000
+     71  f000		       00 1e	   CollisionSoundFrames =	30
+     72  f000
+     73  f000
+     74  f000				   Start
       0  f000					      CLEAN_START
       1  f000		       78		      sei
       2  f001		       d8		      cld
@@ -394,537 +435,1022 @@
       9  f008		       48		      pha
      10  f009		       d0 fb		      bne	.CLEAR_STACK
      11  f00b
-     35  f00b
-     36  f00b		       a9 9c		      lda	#$9C
-     37  f00d		       85 09		      sta	COLUBK
-     38  f00f
-     39  f00f		       a9 c2		      lda	#$C2
-     40  f011		       85 06		      sta	COLUP0
-     41  f013		       85 07		      sta	COLUP1
-     42  f015
-     43  f015		       a9 e2		      lda	#$E2
-     44  f017		       85 08		      sta	COLUPF
-     45  f019
-     46  f019		       a9 00		      lda	#0
-     47  f01b		       85 82		      sta	DinoVerticalDelay
-     48  f01d		       85 87		      sta	VarButtonLock
-     49  f01f
-     50  f01f		       a9 41		      lda	#GroundVerticalPos
-     51  f021		       85 81		      sta	DinoVerticalPos
-     52  f023
-     53  f023		       a9 08		      lda	#DinoAnimateSpriteFramesDelay
-     54  f025		       85 89		      sta	DinoAnimateSpriteDelay
-     55  f027
-     56  f027		       a9 00		      lda	#0
-     57  f029		       85 80		      sta	DinoVerticalVelocity
-     58  f02b		       85 20		      sta	HMP0
-     59  f02d
-     60  f02d		       a9 06		      lda	#6
-     61  f02f		       85 90		      sta	CactusDesiredPattern	; Sombra do NUSIZ1, que o CLEAN_START já zerou
-     62  f031
-     63  f031		       a9 97		      lda	#$97	; Posição X inicial do Cacto (151)
-     64  f033		       85 8e		      sta	CactusHorizontalPos
-     65  f035
-     66  f035		       85 02		      sta	WSYNC
-     67  f037		       a9 1e		      lda	#30	; Posição X fixa que você deseja para o Dino (ajuste se precisar)
-     68  f039		       a2 00		      ldx	#0	; Seleciona Player 0
-     69  f03b		       20 50 f1 	      jsr	SetHorizPos	; Posiciona o Dino na marra antes do jogo começar
-     70  f03e
-     71  f03e		       a9 01		      lda	#01	; Permite trocar o padrão
-     72  f040		       85 8d		      sta	Helper
-     73  f042
-     74  f042				   FrameLoop
-     75  f042
-      0  f042					      VERTICAL_SYNC
-      1  f042		       a9 02		      LDA	#$02
-      2  f044		       85 02		      STA	WSYNC
-      3  f046		       85 00		      STA	VSYNC
-      4  f048		       85 02		      STA	WSYNC
-      5  f04a		       85 02		      STA	WSYNC
-      6  f04c		       4a		      LSR
-      7  f04d		       85 02		      STA	WSYNC
-      8  f04f		       85 00		      STA	VSYNC
-     77  f051
-     78  f051							; -------------------------------------------------------------------------
-     79  f051							; INÍCIO DO VBLANK
-     80  f051							; -------------------------------------------------------------------------
-     81  f051		       a9 2b		      lda	#43
-     82  f053		       8d 96 02 	      sta	TIM64T
-     83  f056
-     84  f056		       a9 00		      lda	#$00
-     85  f058		       85 0d		      sta	PF0
-     86  f05a		       85 0e		      sta	PF1
-     87  f05c		       85 0f		      sta	PF2
-     88  f05e
-     89  f05e		       e6 8c		      inc	Seed
-     90  f060
-     91  f060		       20 73 f1 	      jsr	AnimateDinoSprite
-     92  f063		       20 99 f1 	      jsr	HandleDinoJump
-     93  f066
-     94  f066							;jmp Not2CopiesClose
-     95  f066
-     96  f066							; MOVIMENTO DO CACTUS
-     97  f066		       c6 8e		      dec	CactusHorizontalPos
-     98  f068							; Chegou no canto esquerdo?
-     99  f068		       d0 2b		      bne	DontResetCactusHorizontalPos
-    100  f06a
-    101  f06a		       a9 97		      lda	#$97	; 119
-    102  f06c		       85 8e		      sta	CactusHorizontalPos
-    103  f06e
-    104  f06e							;O padrão ativo são 2 cópias média distÂncia?
-    105  f06e		       a5 8f		      lda	CactusActivePattern
-    106  f070		       c9 02		      cmp	#02	;
-    107  f072		       d0 0b		      bne	Not2CopiesMediumLeaving
-    108  f074
-    109  f074							; Muda para 1 cópia apenas
-    110  f074		       a9 00		      lda	#0
-    111  f076		       85 8f		      sta	CactusActivePattern
-    112  f078
-    113  f078							; Move o cacto para a esquerda a distancia media (32 clocks)
-    114  f078		       a9 20		      lda	#32
-    115  f07a		       85 8e		      sta	CactusHorizontalPos
-    116  f07c		       4c 95 f0 	      jmp	DontResetCactusHorizontalPos
-    117  f07f
-    118  f07f				   Not2CopiesMediumLeaving
-    119  f07f
-    120  f07f							;O padrão ativo são 3 cópias média distÂncia?
-    121  f07f		       a5 8f		      lda	CactusActivePattern
-    122  f081		       c9 06		      cmp	#06	;
-    123  f083		       d0 0d		      bne	Not3CopiesMediumLeaving
-    124  f085
-    125  f085							; Muda para 2 cópias apenas
-    126  f085		       a9 02		      lda	#02
-    127  f087		       85 8f		      sta	CactusActivePattern
-    128  f089		       85 90		      sta	CactusDesiredPattern
-    129  f08b
-    130  f08b							; Move o cacto para a esquerda a distancia media (32 clocks)
-    131  f08b		       a9 20		      lda	#32
-    132  f08d		       85 8e		      sta	CactusHorizontalPos
-    133  f08f		       4c 95 f0 	      jmp	DontResetCactusHorizontalPos
-    134  f092
-    135  f092				   Not3CopiesMediumLeaving
-    136  f092
-    137  f092		       20 62 f1 	      jsr	SelectCactusDesiredPattern
-    138  f095
-    139  f095				   DontResetCactusHorizontalPos
-    140  f095
-    141  f095							; O padrão desejado do cacto é 2 cópias, média distância?
-    142  f095		       a5 90		      lda	CactusDesiredPattern
-    143  f097		       c9 02		      cmp	#02	; é duas cópias, média distância?
-    144  f099		       d0 0a		      bne	Not2CopiesMedium
-    145  f09b
-    146  f09b							; Sim? verifica se a posição horizontal do cacto já permite exibir a segunda cópia
-    147  f09b		       a5 8e		      lda	CactusHorizontalPos
-    148  f09d		       c9 77		      cmp	#$77	; 119
-    149  f09f		       d0 04		      bne	Not2CopiesMedium
-    150  f0a1
-    151  f0a1							; Sim, duplica o Player1
-    152  f0a1		       a5 90		      lda	CactusDesiredPattern
-    153  f0a3		       85 8f		      sta	CactusActivePattern
-    154  f0a5
-    155  f0a5				   Not2CopiesMedium
-    156  f0a5
-    157  f0a5
-    158  f0a5							; O Padrão desejado do cacto são 3 cópias, média distância?
-    159  f0a5		       a5 90		      lda	CactusDesiredPattern
-    160  f0a7		       c9 06		      cmp	#06
-    161  f0a9		       d0 1e		      bne	Not3CopiesMedium
-    162  f0ab
-    163  f0ab							; O Padrão desejado do cacto são 3 cópias, média distância,
-    164  f0ab							; O padrão ativo do cacto é 1 cópia?
-    165  f0ab		       a5 8f		      lda	CactusActivePattern
-    166  f0ad		       d0 0a		      bne	Not1Copy
-    167  f0af
-    168  f0af							; O Padrão desejado do cacto são 3 cópias, média distância,
-    169  f0af							; O padrão ativo do cacto é uma cópia,
-    170  f0af							; a posição horizontal já permite exibir a segunda cópia?
-    171  f0af		       a5 8e		      lda	CactusHorizontalPos
-    172  f0b1		       c9 77		      cmp	#$77	; 119
-    173  f0b3		       d0 14		      bne	NotReadyForSecondCopyIn3CopiesMedium
-    174  f0b5
-    175  f0b5							; Sim, duplica o Player1
-    176  f0b5		       a9 02		      lda	#02
-    177  f0b7		       85 8f		      sta	CactusActivePattern
-    178  f0b9
-    179  f0b9				   Not1Copy
-    180  f0b9
-    181  f0b9							; O padrão desejado são 3 cópias médias
-    182  f0b9							; O padrão ativo do cacto são duas cópias?
-    183  f0b9		       a5 8f		      lda	CactusActivePattern
-    184  f0bb		       c9 02		      cmp	#02
-    185  f0bd		       d0 0a		      bne	Not2CopiesMediumIn3CopiesMedium
-    186  f0bf
-    187  f0bf							; O Padrão desejado do cacto são 3 cópias, média distância,
-    188  f0bf							; O padrão ativo do cacto são duas cópias,
-    189  f0bf							; a posição horizontal já permite exibir a terceira cópia?
-    190  f0bf		       a5 8e		      lda	CactusHorizontalPos
-    191  f0c1		       c9 57		      cmp	#$57	; 151
-    192  f0c3		       d0 04		      bne	NotReadyForThirdCopyIn3CopiesMedium
-    193  f0c5
-    194  f0c5							; Sim, triplica o player1
-    195  f0c5		       a9 06		      lda	#06
-    196  f0c7		       85 8f		      sta	CactusActivePattern
-    197  f0c9
-    198  f0c9				   Not2CopiesMediumIn3CopiesMedium
-    199  f0c9				   NotReadyForSecondCopyIn3CopiesMedium
-    200  f0c9				   NotReadyForThirdCopyIn3CopiesMedium
-    201  f0c9				   Not3CopiesMedium
-    202  f0c9
-    203  f0c9		       a5 8f		      lda	CactusActivePattern
-    204  f0cb		       85 05		      sta	NUSIZ1
-    205  f0cd
-    206  f0cd							; -------------------------------------------------------------------------
-    207  f0cd							; EXECUÇÃO DO POSICIONAMENTO HORIZONTAL APENAS DO CACTO (P1)
-    208  f0cd							; -------------------------------------------------------------------------
-    209  f0cd		       a9 00		      lda	#0
-    210  f0cf		       85 20		      sta	HMP0	; <--- EXTREMAMENTE IMPORTANTE: Zera o movimento do Dino
-    211  f0d1							;	para ele NÃO sair correndo junto com o cacto!
-    212  f0d1
-    213  f0d1		       a5 8e		      lda	CactusHorizontalPos	; Carrega a coordenada X variável do Cacto
-    214  f0d3		       a2 01		      ldx	#1	; Informa que queremos posicionar o Player 1
-    215  f0d5		       20 50 f1 	      jsr	SetHorizPos	; Executa a rotina dinâmica para o cacto
-    216  f0d8
-    217  f0d8		       85 02		      sta	WSYNC
-    218  f0da		       85 2a		      sta	HMOVE	; Aplica o ajuste fino na tela com segurança!
-    219  f0dc
-    220  f0dc							; Espera o resto do tempo do VBLANK acabar com segurança
-    221  f0dc				   WaitForVblankEnd
-    222  f0dc		       ad 84 02 	      lda	INTIM
-    223  f0df		       d0 fb		      bne	WaitForVblankEnd
-    224  f0e1		       a9 00		      lda	#0
-    225  f0e3		       85 02		      sta	WSYNC
-    226  f0e5		       85 01		      sta	VBLANK
-    227  f0e7
-    228  f0e7							; -------------------------------------------------------------------------
-    229  f0e7							; KERNEL (Desenho da Tela Visível)
-    230  f0e7							; -------------------------------------------------------------------------
-    231  f0e7		       a0 00		      ldy	#0
-    232  f0e9
-    233  f0e9				   ScanlineLoop
-    234  f0e9		       85 02		      sta	WSYNC
-    235  f0eb
-    236  f0eb		       a5 83		      lda	DinoBitmapBuffer
-    237  f0ed		       85 1b		      sta	GRP0
-    238  f0ef
-    239  f0ef		       a5 8a		      lda	CactusBitmapBuffer
-    240  f0f1		       85 1c		      sta	GRP1
-    241  f0f3
-    242  f0f3		       a9 00		      lda	#0
-    243  f0f5		       85 83		      sta	DinoBitmapBuffer
-    244  f0f7		       85 8a		      sta	CactusBitmapBuffer
-    245  f0f9
-    246  f0f9		       c4 81		      cpy	DinoVerticalPos
-    247  f0fb		       d0 04		      bne	SkipDinoDrawBegin
-    248  f0fd
-    249  f0fd		       a9 0e		      lda	#14
-    250  f0ff		       85 84		      sta	DinoLineBeingDraw
-    251  f101
-    252  f101				   SkipDinoDrawBegin
-    253  f101
-    254  f101		       98		      tya
-    255  f102		       aa		      tax
-    256  f103		       a4 84		      ldy	DinoLineBeingDraw
-    257  f105		       f0 06		      beq	FinishDraw
-    258  f107
-    259  f107		       b1 85		      lda	(DinoBitmapLocation),Y
-    260  f109		       85 83		      sta	DinoBitmapBuffer
-    261  f10b		       c6 84		      dec	DinoLineBeingDraw
-    262  f10d
-    263  f10d				   FinishDraw
-    264  f10d
-    265  f10d		       85 02		      sta	WSYNC
-    266  f10f
-    267  f10f		       8a		      txa
-    268  f110		       a8		      tay
-    269  f111
-    270  f111		       c0 41		      cpy	#GroundVerticalPos
-    271  f113		       d0 04		      bne	SkipCactusDrawBegin
-    272  f115
-    273  f115		       a9 0e		      lda	#14
-    274  f117		       85 8b		      sta	CactusLineBeingDraw
-    275  f119
-    276  f119				   SkipCactusDrawBegin
-    277  f119
-    278  f119		       a6 8b		      ldx	CactusLineBeingDraw
-    279  f11b		       f0 07		      beq	CactusFinishDraw
-    280  f11d
-    281  f11d		       bd 01 f2 	      lda	Cactus,X
-    282  f120		       85 8a		      sta	CactusBitmapBuffer
-    283  f122		       c6 8b		      dec	CactusLineBeingDraw
-    284  f124
-    285  f124				   CactusFinishDraw
-    286  f124
-    287  f124		       c8		      iny
-    288  f125		       c0 50		      cpy	#80
-    289  f127		       d0 c0		      bne	ScanlineLoop
-    290  f129
-    291  f129		       85 02		      sta	WSYNC
-    292  f12b		       a9 00		      lda	#0
-    293  f12d		       85 1b		      sta	GRP0
-    294  f12f		       85 1c		      sta	GRP1
-    295  f131
-    296  f131		       a9 ff		      lda	#$FF
-    297  f133		       85 0d		      sta	PF0
-    298  f135		       85 0e		      sta	PF1
-    299  f137		       85 0f		      sta	PF2
-    300  f139
-    301  f139		       a0 14		      ldy	#20
-    302  f13b				   GroundScanlineLoop
-    303  f13b		       85 02		      sta	WSYNC
-    304  f13d		       88		      dey
-    305  f13e		       d0 fb		      bne	GroundScanlineLoop
-    306  f140
-    307  f140							; -------------------------------------------------------------------------
-    308  f140							; OVERSCAN
-    309  f140							; -------------------------------------------------------------------------
-    310  f140		       a9 02		      lda	#2
-    311  f142		       85 02		      sta	WSYNC
-    312  f144		       85 01		      sta	VBLANK
-    313  f146		       a2 1e		      ldx	#30
-    314  f148				   OverScanWait
-    315  f148		       85 02		      sta	WSYNC
-    316  f14a		       ca		      dex
-    317  f14b		       d0 fb		      bne	OverScanWait
-    318  f14d
-    319  f14d		       4c 42 f0 	      jmp	FrameLoop
-    320  f150
-    321  f150							; ============================================================================
-    322  f150							; SUBROTINA: Posicionamento Horizontal Clássico e Definitivo (Sem Tabela)
-    323  f150							; ============================================================================
-    324  f150				   SetHorizPos
-    325  f150		       85 02		      sta	WSYNC	; Sincroniza no início de uma nova linha horizontal
-    326  f152		       38		      sec		; Garante carry setado para a subtração
-    327  f153				   SetHorizPosLoop
-    328  f153		       e9 0f		      sbc	#15	; Subtrai 15 da coordenada X
-    329  f155		       b0 fc		      bcs	SetHorizPosLoop	; Repete o ajuste grosso até ficar negativo
-    330  f157
-    331  f157		       49 07		      eor	#7	; Converte matematicamente o resto bruto no ajuste fino
-    332  f159		       0a		      asl		; Desloca o bit 1 vez para a esquerda...
-    333  f15a		       0a		      asl		; 2 vezes...
-    334  f15b		       0a		      asl		; 3 vezes...
-    335  f15c		       0a		      asl		; 4 vezes (coloca o valor no nibble alto exigido pelo TIA)
-    336  f15d
-    337  f15d		       95 20		      sta	HMP0,X	; Define o ajuste fino no player correto
-    338  f15f		       95 10		      sta	RESP0,X	; Ativa o Reset Coarse/Bruto
-    339  f161		       60		      rts
-    340  f162
-    341  f162
-    342  f162				   SelectCactusDesiredPattern
-    343  f162		       e6 8c		      inc	Seed	; Avança a seed
-    344  f164		       a5 8c		      lda	Seed	; Pega o novo valor da seed
-    345  f166		       29 03		      and	#$03	; Mantém apenas os 2 bits menos significativos (0-3)
-    346  f168		       aa		      tax		; Índice de 0 a 3
-    347  f169		       bd 6f f1 	      lda	CactusPatternTable,X	; Busca a configuração na tabela
-    348  f16c		       85 90		      sta	CactusDesiredPattern	; Guarda o padrão sorteado/desejado
-    349  f16e		       60		      rts
-    350  f16f
-    351  f16f
-    352  f16f							; ============================================================================
-    353  f16f							; TABELA DE PADRÕES PERMITIDOS PARA O CACTO (Sem cópias próximas / Com cactos grandes)
-    354  f16f							; ============================================================================
-    355  f16f				   CactusPatternTable
-    356  f16f		       00		      .byte.b	$00	; Opção 0: 1 Cacto normal
-    357  f170		       02		      .byte.b	$02	; Opção 1: 2 Cactos distância média (32 clocks)
-    358  f171							;.byte $02    ; Opção 2: 2 Cactos distância média (32 clocks)
-    359  f171							;.byte $05    ; Opção 3: 1 Cacto Grande (Tamanho 2x)
-    360  f171							;.byte $07    ; Opção 4: 1 Cacto Gigante (Tamanho 4x)
-    361  f171							;.byte $04    ; Opção 5: 2 Cactos distância longa (64 clocks)
-    362  f171		       06		      .byte.b	$06	; Opção 6: 3 Cactos distância média (32 clocks)
-    363  f172		       06		      .byte.b	$06	; Opção 6: 3 Cactos distância média (32 clocks)
-    364  f173
+     76  f00b
+     77  f00b		       a9 9c		      lda	#$9C
+     78  f00d		       85 09		      sta	COLUBK
+     79  f00f
+     80  f00f		       a9 c2		      lda	#$C2
+     81  f011		       85 06		      sta	COLUP0
+     82  f013		       85 07		      sta	COLUP1
+     83  f015
+     84  f015		       a9 e2		      lda	#$E2
+     85  f017		       85 08		      sta	COLUPF
+     86  f019
+     87  f019		       a9 00		      lda	#0
+     88  f01b		       85 82		      sta	DinoVerticalDelay
+     89  f01d		       85 87		      sta	VarButtonLock
+     90  f01f		       85 96		      sta	CollisionState
+     91  f021		       85 97		      sta	CollisionTimer
+     92  f023		       85 98		      sta	SoundCounter
+     93  f025
+     94  f025		       85 2c		      sta	CXCLR
+     95  f027
+     96  f027		       85 15		      sta	AUDC0
+     97  f029		       85 17		      sta	AUDF0
+     98  f02b		       85 19		      sta	AUDV0
+     99  f02d		       85 16		      sta	AUDC1
+    100  f02f		       85 18		      sta	AUDF1
+    101  f031		       85 1a		      sta	AUDV1
+    102  f033
+    103  f033		       a9 41		      lda	#GroundVerticalPos
+    104  f035		       85 81		      sta	DinoVerticalPos
+    105  f037
+    106  f037		       a9 08		      lda	#DinoAnimateSpriteFramesDelay
+    107  f039		       85 89		      sta	DinoAnimateSpriteDelay
+    108  f03b
+    109  f03b		       a9 00		      lda	#0
+    110  f03d		       85 80		      sta	DinoVerticalVelocity
+    111  f03f		       85 20		      sta	HMP0
+    112  f041
+    113  f041		       a9 06		      lda	#6
+    114  f043		       85 90		      sta	CactusDesiredPattern
+    115  f045
+    116  f045							; ---------------------------------------------------------------------
+    117  f045							; VELOCIDADE INICIAL
+    118  f045							;
+    119  f045							; 4 = 1,00 pixel/frame
+    120  f045							; ---------------------------------------------------------------------
+    121  f045
+    122  f045		       a9 10		      lda	#FramesToSkipMovement
+    123  f047		       85 92		      sta	CactusSpeed
+    124  f049
+    125  f049		       a9 00		      lda	#0
+    126  f04b		       85 93		      sta	SpeedTimer
+    127  f04d
+    128  f04d		       85 94		      sta	CactusMoveAccumulator
+    129  f04f		       85 95		      sta	CactusFrameMovement
+    130  f051
+    131  f051		       a9 97		      lda	#$97
+    132  f053		       85 8e		      sta	CactusHorizontalPos
+    133  f055
+    134  f055		       85 02		      sta	WSYNC
+    135  f057		       a9 1e		      lda	#30
+    136  f059		       a2 00		      ldx	#0
+    137  f05b		       20 90 f2 	      jsr	SetHorizPos
+    138  f05e
+    139  f05e		       a9 01		      lda	#01
+    140  f060		       85 8d		      sta	Helper
+    141  f062
+    142  f062		       20 b7 f2 	      jsr	AnimateDinoSprite
+    143  f065
+    144  f065		       ad 82 02 	      lda	SWCHB
+    145  f068		       29 01		      and	#%00000001
+    146  f06a		       85 91		      sta	PrevResetSwitch
+    147  f06c
+    148  f06c
+    149  f06c				   FrameLoop
+    150  f06c
+      0  f06c					      VERTICAL_SYNC
+      1  f06c		       a9 02		      LDA	#$02
+      2  f06e		       85 02		      STA	WSYNC
+      3  f070		       85 00		      STA	VSYNC
+      4  f072		       85 02		      STA	WSYNC
+      5  f074		       85 02		      STA	WSYNC
+      6  f076		       4a		      LSR
+      7  f077		       85 02		      STA	WSYNC
+      8  f079		       85 00		      STA	VSYNC
+    152  f07b
+    153  f07b							; -------------------------------------------------------------------------
+    154  f07b							; INÍCIO DO VBLANK
+    155  f07b							; -------------------------------------------------------------------------
+    156  f07b		       a9 2b		      lda	#43
+    157  f07d		       8d 96 02 	      sta	TIM64T
+    158  f080
+    159  f080		       a9 00		      lda	#$00
+    160  f082		       85 0d		      sta	PF0
+    161  f084		       85 0e		      sta	PF1
+    162  f086		       85 0f		      sta	PF2
+    163  f088
+    164  f088		       e6 8c		      inc	Seed
+    165  f08a
+    166  f08a							; -------------------------------------------------------------------------
+    167  f08a							; BOTÃO RESET DO CONSOLE
+    168  f08a							; -------------------------------------------------------------------------
+    169  f08a		       ad 82 02 	      lda	SWCHB
+    170  f08d		       29 01		      and	#%00000001
+    171  f08f		       c5 91		      cmp	PrevResetSwitch
+    172  f091		       f0 0f		      beq	ResetSwitchNoChange
+    173  f093
+    174  f093		       85 91		      sta	PrevResetSwitch
+    175  f095
+    176  f095		       c9 01		      cmp	#1
+    177  f097		       f0 03		      beq	ResetButtonReleased
+    178  f099
+    179  f099							; Foi pressionado: reinicia tudo
+    180  f099		       4c 00 f0 	      jmp	Start
+    181  f09c
+    182  f09c
+    183  f09c				   ResetButtonReleased
+    184  f09c
+    185  f09c		       a5 8d		      lda	Helper
+    186  f09e		       09 02		      ora	#GameStartedFlag
+    187  f0a0		       85 8d		      sta	Helper
+    188  f0a2
+    189  f0a2
+    190  f0a2				   ResetSwitchNoChange
+    191  f0a2
+    192  f0a2							; -------------------------------------------------------------------------
+    193  f0a2							; Enquanto o jogo não tiver sido iniciado,
+    194  f0a2							; nada se move.
+    195  f0a2							; -------------------------------------------------------------------------
+    196  f0a2		       a5 8d		      lda	Helper
+    197  f0a4		       29 02		      and	#GameStartedFlag
+    198  f0a6		       d0 03		      bne	GameIsRunning
+    199  f0a8
+    200  f0a8		       4c 99 f1 	      jmp	SkipGameplayLogic
+    201  f0ab
+    202  f0ab
+    203  f0ab				   GameIsRunning
+    204  f0ab
+    205  f0ab							; -----------------------------------------------------------------
+    206  f0ab							; Se estamos no estado de colisão, apenas atualiza o som.
+    207  f0ab							; Nenhum movimento do jogo é executado.
+    208  f0ab							; -----------------------------------------------------------------
+    209  f0ab
+    210  f0ab		       a5 96		      lda	CollisionState
+    211  f0ad		       f0 06		      beq	NormalGameplay
+    212  f0af
+    213  f0af		       20 40 f2 	      jsr	UpdateCollisionSound
+    214  f0b2		       4c 99 f1 	      jmp	SkipGameplayLogic
+    215  f0b5
+    216  f0b5
+    217  f0b5				   NormalGameplay
+    218  f0b5
+    219  f0b5							; -----------------------------------------------------------------
+    220  f0b5							; Verifica colisão P0-P1
+    221  f0b5							;
+    222  f0b5							; CXPPMM bit 7 = P0-P1
+    223  f0b5							; -----------------------------------------------------------------
+    224  f0b5
+    225  f0b5		       a5 07		      lda	CXPPMM
+    226  f0b7		       29 80		      and	#%10000000
+    227  f0b9		       f0 06		      beq	NoCollision
+    228  f0bb
+    229  f0bb		       20 20 f2 	      jsr	HandleCollision
+    230  f0be
+    231  f0be		       4c 99 f1 	      jmp	SkipGameplayLogic
+    232  f0c1
+    233  f0c1
+    234  f0c1				   NoCollision
+    235  f0c1
+    236  f0c1		       20 b7 f2 	      jsr	AnimateDinoSprite
+    237  f0c4		       20 dd f2 	      jsr	HandleDinoJump
+    238  f0c7
+    239  f0c7
+    240  f0c7							; -------------------------------------------------------------------------
+    241  f0c7							; ACELERAÇÃO GRADUAL
+    242  f0c7							;
+    243  f0c7							; A cada 180 frames aumenta apenas 0,25 pixel/frame.
+    244  f0c7							;
+    245  f0c7							; 4  = 1,00 px/frame
+    246  f0c7							; 5  = 1,25 px/frame
+    247  f0c7							; 6  = 1,50 px/frame
+    248  f0c7							; ...
+    249  f0c7							; 16 = 4,00 px/frame
+    250  f0c7							; -------------------------------------------------------------------------
+    251  f0c7
+    252  f0c7		       e6 93		      inc	SpeedTimer
+    253  f0c9
+    254  f0c9		       a5 93		      lda	SpeedTimer
+    255  f0cb		       c9 ff		      cmp	#SpeedUpInterval
+    256  f0cd		       d0 0c		      bne	SpeedNotYet
+    257  f0cf
+    258  f0cf		       a9 00		      lda	#0
+    259  f0d1		       85 93		      sta	SpeedTimer
+    260  f0d3
+    261  f0d3		       a5 92		      lda	CactusSpeed
+    262  f0d5		       c9 40		      cmp	#MaxCactusSpeed
+    263  f0d7		       f0 02		      beq	SpeedNotYet
+    264  f0d9
+    265  f0d9		       e6 92		      inc	CactusSpeed
+    266  f0db
+    267  f0db
+    268  f0db				   SpeedNotYet
+    269  f0db
+    270  f0db							; ---------------------------------------------------------------------
+    271  f0db							; MOVIMENTO GRADUAL DO CACTO
+    272  f0db							;
+    273  f0db							; CactusSpeed está em quartos de pixel.
+    274  f0db							;
+    275  f0db							; A cada frame:
+    276  f0db							;
+    277  f0db							;     acumulador += velocidade
+    278  f0db							;
+    279  f0db							; Cada 4 unidades acumuladas = 1 pixel.
+    280  f0db							;
+    281  f0db							; Exemplos:
+    282  f0db							;
+    283  f0db							; 4  (1,00 px/frame)
+    284  f0db							;   -> 1,1,1,1,1,1...
+    285  f0db							;
+    286  f0db							; 5  (1,25 px/frame)
+    287  f0db							;   -> 1,1,1,2,1,1,1,2...
+    288  f0db							;
+    289  f0db							; 6  (1,50 px/frame)
+    290  f0db							;   -> 1,2,1,2,1,2...
+    291  f0db							;
+    292  f0db							; 7  (1,75 px/frame)
+    293  f0db							;   -> 1,2,2,1,2,2,1...
+    294  f0db							;
+    295  f0db							; 8  (2,00 px/frame)
+    296  f0db							;   -> 2,2,2,2...
+    297  f0db							; ---------------------------------------------------------------------
+    298  f0db
+    299  f0db		       a5 94		      lda	CactusMoveAccumulator
+    300  f0dd		       18		      clc
+    301  f0de		       65 92		      adc	CactusSpeed
+    302  f0e0		       85 94		      sta	CactusMoveAccumulator
+    303  f0e2
+    304  f0e2							; ---------------------------------------------------------------------
+    305  f0e2							; Descobre quantos pixels devem ser percorridos neste frame.
+    306  f0e2							;
+    307  f0e2							; Cada grupo de 4 no acumulador representa 1 pixel.
+    308  f0e2							; ---------------------------------------------------------------------
+    309  f0e2
+    310  f0e2		       a9 00		      lda	#0
+    311  f0e4		       85 95		      sta	CactusFrameMovement
+    312  f0e6
+    313  f0e6
+    314  f0e6				   CactusMoveLoop
+    315  f0e6
+    316  f0e6		       a5 94		      lda	CactusMoveAccumulator
+    317  f0e8		       c9 10		      cmp	#FramesToSkipMovement
+    318  f0ea		       90 0a		      bcc	CactusMoveDone
+    319  f0ec
+    320  f0ec		       38		      sec
+    321  f0ed		       e9 10		      sbc	#FramesToSkipMovement
+    322  f0ef		       85 94		      sta	CactusMoveAccumulator
+    323  f0f1
+    324  f0f1		       e6 95		      inc	CactusFrameMovement
+    325  f0f3
+    326  f0f3		       4c e6 f0 	      jmp	CactusMoveLoop
+    327  f0f6
+    328  f0f6
+    329  f0f6				   CactusMoveDone
+    330  f0f6
+    331  f0f6							; ---------------------------------------------------------------------
+    332  f0f6							; Move o cacto a quantidade calculada neste frame.
+    333  f0f6							; ---------------------------------------------------------------------
+    334  f0f6
+    335  f0f6		       a5 8e		      lda	CactusHorizontalPos
+    336  f0f8		       38		      sec
+    337  f0f9		       e5 95		      sbc	CactusFrameMovement
+    338  f0fb		       b0 02		      bcs	CactusPosOk
+    339  f0fd
+    340  f0fd		       a9 00		      lda	#0
+    341  f0ff
+    342  f0ff
+    343  f0ff				   CactusPosOk
+    344  f0ff
+    345  f0ff		       85 8e		      sta	CactusHorizontalPos
+    346  f101
+    347  f101
+    348  f101							; -------------------------------------------------------------------------
+    349  f101							; CHEGOU NO CANTO ESQUERDO?
+    350  f101							; -------------------------------------------------------------------------
+    351  f101
+    352  f101		       d0 52		      bne	DontResetCactusHorizontalPos
+    353  f103
+    354  f103		       a9 97		      lda	#$97
+    355  f105		       85 8e		      sta	CactusHorizontalPos
+    356  f107
+    357  f107
+    358  f107							; -------------------------------------------------------------------------
+    359  f107							; O padrão ativo são 2 cópias média distância?
+    360  f107							; -------------------------------------------------------------------------
+    361  f107
+    362  f107		       a5 8f		      lda	CactusActivePattern
+    363  f109		       c9 02		      cmp	#02
+    364  f10b		       d0 0d		      bne	Not2CopiesMediumLeaving
+    365  f10d
+    366  f10d		       a9 00		      lda	#0
+    367  f10f		       85 8f		      sta	CactusActivePattern
+    368  f111		       85 90		      sta	CactusDesiredPattern
+    369  f113
+    370  f113		       a9 20		      lda	#32
+    371  f115		       85 8e		      sta	CactusHorizontalPos
+    372  f117
+    373  f117		       4c 55 f1 	      jmp	DontResetCactusHorizontalPos
+    374  f11a
+    375  f11a
+    376  f11a				   Not2CopiesMediumLeaving
+    377  f11a
+    378  f11a							; -------------------------------------------------------------------------
+    379  f11a							; O padrão ativo são 3 cópias média distância?
+    380  f11a							; -------------------------------------------------------------------------
+    381  f11a
+    382  f11a		       a5 8f		      lda	CactusActivePattern
+    383  f11c		       c9 06		      cmp	#06
+    384  f11e		       d0 0d		      bne	Not3CopiesMediumLeaving
+    385  f120
+    386  f120		       a9 02		      lda	#02
+    387  f122		       85 8f		      sta	CactusActivePattern
+    388  f124		       85 90		      sta	CactusDesiredPattern
+    389  f126
+    390  f126		       a9 20		      lda	#32
+    391  f128		       85 8e		      sta	CactusHorizontalPos
+    392  f12a
+    393  f12a		       4c 55 f1 	      jmp	DontResetCactusHorizontalPos
+    394  f12d
+    395  f12d
+    396  f12d				   Not3CopiesMediumLeaving
+    397  f12d
+    398  f12d							; -------------------------------------------------------------------------
+    399  f12d							; O padrão ativo são 2 cópias distância longa?
+    400  f12d							; -------------------------------------------------------------------------
+    401  f12d
+    402  f12d		       a5 8f		      lda	CactusActivePattern
+    403  f12f		       c9 04		      cmp	#04
+    404  f131		       d0 0d		      bne	Not2CopiesLongLeaving
+    405  f133
+    406  f133		       a9 00		      lda	#0
+    407  f135		       85 8f		      sta	CactusActivePattern
+    408  f137		       85 90		      sta	CactusDesiredPattern
+    409  f139
+    410  f139		       a9 40		      lda	#64
+    411  f13b		       85 8e		      sta	CactusHorizontalPos
+    412  f13d
+    413  f13d		       4c 55 f1 	      jmp	DontResetCactusHorizontalPos
+    414  f140
+    415  f140
+    416  f140				   Not2CopiesLongLeaving
+    417  f140
+    418  f140							; -------------------------------------------------------------------------
+    419  f140							; O padrão ativo é o Cacto Grande?
+    420  f140							; -------------------------------------------------------------------------
+    421  f140
+    422  f140		       a5 8f		      lda	CactusActivePattern
+    423  f142		       c9 05		      cmp	#05
+    424  f144		       d0 04		      bne	Not1BigCactusLeaving
+    425  f146
+    426  f146		       a9 00		      lda	#0
+    427  f148		       85 8f		      sta	CactusActivePattern
+    428  f14a
+    429  f14a
+    430  f14a				   Not1BigCactusLeaving
+    431  f14a
+    432  f14a		       20 a2 f2 	      jsr	SelectCactusDesiredPattern
+    433  f14d
+    434  f14d							; ---------------------------------------------------------------------
+    435  f14d							; Se o padrão sorteado for o Cacto Grande,
+    436  f14d							; ativa imediatamente.
+    437  f14d							; ---------------------------------------------------------------------
+    438  f14d
+    439  f14d		       a5 90		      lda	CactusDesiredPattern
+    440  f14f		       c9 05		      cmp	#05
+    441  f151		       d0 02		      bne	NotBigCactusImmediate
+    442  f153
+    443  f153		       85 8f		      sta	CactusActivePattern
+    444  f155
+    445  f155
+    446  f155				   NotBigCactusImmediate
+    447  f155
+    448  f155
+    449  f155				   DontResetCactusHorizontalPos
+    450  f155
+    451  f155							; -------------------------------------------------------------------------
+    452  f155							; O padrão desejado do cacto é 2 cópias, média distância?
+    453  f155							; -------------------------------------------------------------------------
+    454  f155
+    455  f155		       a5 90		      lda	CactusDesiredPattern
+    456  f157		       c9 02		      cmp	#02
+    457  f159		       d0 0a		      bne	Not2CopiesMedium
+    458  f15b
+    459  f15b		       a5 8e		      lda	CactusHorizontalPos
+    460  f15d		       c9 78		      cmp	#$78
+    461  f15f		       b0 04		      bcs	Not2CopiesMedium
+    462  f161
+    463  f161		       a5 90		      lda	CactusDesiredPattern
+    464  f163		       85 8f		      sta	CactusActivePattern
+    465  f165
+    466  f165
+    467  f165				   Not2CopiesMedium
+    468  f165
+    469  f165							; -------------------------------------------------------------------------
+    470  f165							; O padrão desejado do cacto é 2 cópias, distância longa?
+    471  f165							; -------------------------------------------------------------------------
+    472  f165
+    473  f165		       a5 90		      lda	CactusDesiredPattern
+    474  f167		       c9 04		      cmp	#04
+    475  f169		       d0 0a		      bne	Not2CopiesLong
+    476  f16b
+    477  f16b		       a5 8e		      lda	CactusHorizontalPos
+    478  f16d		       c9 58		      cmp	#$58
+    479  f16f		       b0 04		      bcs	Not2CopiesLong
+    480  f171
+    481  f171		       a5 90		      lda	CactusDesiredPattern
+    482  f173		       85 8f		      sta	CactusActivePattern
+    483  f175
+    484  f175
+    485  f175				   Not2CopiesLong
+    486  f175
+    487  f175							; -------------------------------------------------------------------------
+    488  f175							; O padrão desejado são 3 cópias média distância?
+    489  f175							; -------------------------------------------------------------------------
+    490  f175
+    491  f175		       a5 90		      lda	CactusDesiredPattern
+    492  f177		       c9 06		      cmp	#06
+    493  f179		       d0 1e		      bne	Not3CopiesMedium
+    494  f17b
+    495  f17b		       a5 8f		      lda	CactusActivePattern
+    496  f17d		       d0 0a		      bne	Not1Copy
+    497  f17f
+    498  f17f		       a5 8e		      lda	CactusHorizontalPos
+    499  f181		       c9 78		      cmp	#$78
+    500  f183		       b0 14		      bcs	NotReadyForSecondCopyIn3CopiesMedium
+    501  f185
+    502  f185		       a9 02		      lda	#02
+    503  f187		       85 8f		      sta	CactusActivePattern
+    504  f189
+    505  f189
+    506  f189				   Not1Copy
+    507  f189
+    508  f189							; ---------------------------------------------------------------------
+    509  f189							; O padrão desejado são 3 cópias médias
+    510  f189							; O padrão ativo são duas cópias?
+    511  f189							; ---------------------------------------------------------------------
+    512  f189
+    513  f189		       a5 8f		      lda	CactusActivePattern
+    514  f18b		       c9 02		      cmp	#02
+    515  f18d		       d0 0a		      bne	Not2CopiesMediumIn3CopiesMedium
+    516  f18f
+    517  f18f		       a5 8e		      lda	CactusHorizontalPos
+    518  f191		       c9 58		      cmp	#$58
+    519  f193		       b0 04		      bcs	NotReadyForThirdCopyIn3CopiesMedium
+    520  f195
+    521  f195		       a9 06		      lda	#06
+    522  f197		       85 8f		      sta	CactusActivePattern
+    523  f199
+    524  f199
+    525  f199				   Not2CopiesMediumIn3CopiesMedium
+    526  f199				   NotReadyForSecondCopyIn3CopiesMedium
+    527  f199				   NotReadyForThirdCopyIn3CopiesMedium
+    528  f199				   Not3CopiesMedium
+    529  f199
+    530  f199
+    531  f199				   SkipGameplayLogic
+    532  f199
+    533  f199							; -------------------------------------------------------------------------
+    534  f199							; NUSIZ1
+    535  f199							; -------------------------------------------------------------------------
+    536  f199
+    537  f199		       a5 8f		      lda	CactusActivePattern
+    538  f19b		       85 05		      sta	NUSIZ1
+    539  f19d
+    540  f19d
+    541  f19d							; -------------------------------------------------------------------------
+    542  f19d							; POSICIONAMENTO HORIZONTAL DO CACTO
+    543  f19d							; -------------------------------------------------------------------------
+    544  f19d
+    545  f19d		       a9 00		      lda	#0
+    546  f19f		       85 20		      sta	HMP0
+    547  f1a1
+    548  f1a1		       a5 8e		      lda	CactusHorizontalPos
+    549  f1a3		       a2 01		      ldx	#1
+    550  f1a5		       20 90 f2 	      jsr	SetHorizPos
+    551  f1a8
+    552  f1a8		       85 02		      sta	WSYNC
+    553  f1aa		       85 2a		      sta	HMOVE
+    554  f1ac
+    555  f1ac
+    556  f1ac							; -------------------------------------------------------------------------
+    557  f1ac							; ESPERA O RESTANTE DO VBLANK
+    558  f1ac							; -------------------------------------------------------------------------
+    559  f1ac
+    560  f1ac				   WaitForVblankEnd
+    561  f1ac
+    562  f1ac		       ad 84 02 	      lda	INTIM
+    563  f1af		       d0 fb		      bne	WaitForVblankEnd
+    564  f1b1
+    565  f1b1		       a9 00		      lda	#0
+    566  f1b3		       85 02		      sta	WSYNC
+    567  f1b5		       85 01		      sta	VBLANK
+    568  f1b7
+    569  f1b7
+    570  f1b7							; -------------------------------------------------------------------------
+    571  f1b7							; KERNEL
+    572  f1b7							; -------------------------------------------------------------------------
+    573  f1b7
+    574  f1b7		       a0 00		      ldy	#0
+    575  f1b9
+    576  f1b9
+    577  f1b9				   ScanlineLoop
+    578  f1b9
+    579  f1b9		       85 02		      sta	WSYNC
+    580  f1bb
+    581  f1bb		       a5 83		      lda	DinoBitmapBuffer
+    582  f1bd		       85 1b		      sta	GRP0
+    583  f1bf
+    584  f1bf		       a5 8a		      lda	CactusBitmapBuffer
+    585  f1c1		       85 1c		      sta	GRP1
+    586  f1c3
+    587  f1c3		       a9 00		      lda	#0
+    588  f1c5		       85 83		      sta	DinoBitmapBuffer
+    589  f1c7		       85 8a		      sta	CactusBitmapBuffer
+    590  f1c9
+    591  f1c9		       c4 81		      cpy	DinoVerticalPos
+    592  f1cb		       d0 04		      bne	SkipDinoDrawBegin
+    593  f1cd
+    594  f1cd		       a9 0e		      lda	#14
+    595  f1cf		       85 84		      sta	DinoLineBeingDraw
+    596  f1d1
+    597  f1d1
+    598  f1d1				   SkipDinoDrawBegin
+    599  f1d1
+    600  f1d1		       98		      tya
+    601  f1d2		       aa		      tax
+    602  f1d3
+    603  f1d3		       a4 84		      ldy	DinoLineBeingDraw
+    604  f1d5		       f0 06		      beq	FinishDraw
+    605  f1d7
+    606  f1d7		       b1 85		      lda	(DinoBitmapLocation),Y
+    607  f1d9		       85 83		      sta	DinoBitmapBuffer
+    608  f1db		       c6 84		      dec	DinoLineBeingDraw
+    609  f1dd
+    610  f1dd
+    611  f1dd				   FinishDraw
+    612  f1dd
+    613  f1dd		       85 02		      sta	WSYNC
+    614  f1df
+    615  f1df		       8a		      txa
+    616  f1e0		       a8		      tay
+    617  f1e1
+    618  f1e1		       c0 41		      cpy	#GroundVerticalPos
+    619  f1e3		       d0 04		      bne	SkipCactusDrawBegin
+    620  f1e5
+    621  f1e5		       a9 0e		      lda	#14
+    622  f1e7		       85 8b		      sta	CactusLineBeingDraw
+    623  f1e9
+    624  f1e9
+    625  f1e9				   SkipCactusDrawBegin
+    626  f1e9
+    627  f1e9		       a6 8b		      ldx	CactusLineBeingDraw
+    628  f1eb		       f0 07		      beq	CactusFinishDraw
+    629  f1ed
+    630  f1ed		       bd 45 f3 	      lda	Cactus,X
+    631  f1f0		       85 8a		      sta	CactusBitmapBuffer
+    632  f1f2		       c6 8b		      dec	CactusLineBeingDraw
+    633  f1f4
+    634  f1f4
+    635  f1f4				   CactusFinishDraw
+    636  f1f4
+    637  f1f4		       c8		      iny
+    638  f1f5
+    639  f1f5		       c0 50		      cpy	#80
+    640  f1f7		       d0 c0		      bne	ScanlineLoop
+    641  f1f9
+    642  f1f9
+    643  f1f9		       85 02		      sta	WSYNC
+    644  f1fb
+    645  f1fb		       a9 00		      lda	#0
+    646  f1fd		       85 1b		      sta	GRP0
+    647  f1ff		       85 1c		      sta	GRP1
+    648  f201
+    649  f201		       a9 ff		      lda	#$FF
+    650  f203		       85 0d		      sta	PF0
+    651  f205		       85 0e		      sta	PF1
+    652  f207		       85 0f		      sta	PF2
+    653  f209
+    654  f209
+    655  f209		       a0 14		      ldy	#20
+    656  f20b
+    657  f20b
+    658  f20b				   GroundScanlineLoop
+    659  f20b
+    660  f20b		       85 02		      sta	WSYNC
+    661  f20d		       88		      dey
+    662  f20e
+    663  f20e		       d0 fb		      bne	GroundScanlineLoop
+    664  f210
+    665  f210
+    666  f210							; -------------------------------------------------------------------------
+    667  f210							; OVERSCAN
+    668  f210							; -------------------------------------------------------------------------
+    669  f210
+    670  f210		       a9 02		      lda	#2
+    671  f212		       85 02		      sta	WSYNC
+    672  f214		       85 01		      sta	VBLANK
+    673  f216
+    674  f216		       a2 1e		      ldx	#30
+    675  f218
+    676  f218
+    677  f218				   OverScanWait
+    678  f218
+    679  f218		       85 02		      sta	WSYNC
+    680  f21a		       ca		      dex
+    681  f21b
+    682  f21b		       d0 fb		      bne	OverScanWait
+    683  f21d
+    684  f21d		       4c 6c f0 	      jmp	FrameLoop
+    685  f220
+    686  f220
+    687  f220							; ============================================================================
+    688  f220							; COLISÃO DINO x CACTO
+    689  f220							; ============================================================================
+    690  f220
+    691  f220				   HandleCollision
+    692  f220
+    693  f220							; Já está no estado de colisão?
+    694  f220		       a5 96		      lda	CollisionState
+    695  f222		       d0 1b		      bne	CollisionAlreadyActive
+    696  f224
+    697  f224		       a9 01		      lda	#1
+    698  f226		       85 96		      sta	CollisionState
+    699  f228
+    700  f228		       a9 1e		      lda	#CollisionSoundFrames
+    701  f22a		       85 97		      sta	CollisionTimer
+    702  f22c
+    703  f22c							; Inicializa o som
+    704  f22c		       a9 02		      lda	#%0010
+    705  f22e		       85 15		      sta	AUDC0
+    706  f230
+    707  f230		       a9 14		      lda	#20
+    708  f232		       85 17		      sta	AUDF0
+    709  f234
+    710  f234		       a9 0f		      lda	#15
+    711  f236		       85 19		      sta	AUDV0
+    712  f238
+    713  f238							; Para o movimento do cacto
+    714  f238		       a9 00		      lda	#0
+    715  f23a		       85 95		      sta	CactusFrameMovement
+    716  f23c		       85 94		      sta	CactusMoveAccumulator
+    717  f23e
+    718  f23e		       60		      rts
+    719  f23f
+    720  f23f
+    721  f23f				   CollisionAlreadyActive
+    722  f23f
+    723  f23f		       60		      rts
+    724  f240
+    725  f240
+    726  f240				   UpdateCollisionSound
+    727  f240
+    728  f240		       a5 97		      lda	CollisionTimer
+    729  f242		       f0 1d		      beq	CollisionSoundFinished
+    730  f244
+    731  f244							; -------------------------------------------------------------
+    732  f244							; Frequência variável
+    733  f244							; -------------------------------------------------------------
+    734  f244
+    735  f244		       a5 97		      lda	CollisionTimer
+    736  f246		       29 07		      and	#%00000111
+    737  f248		       18		      clc
+    738  f249		       69 10		      adc	#16
+    739  f24b		       85 17		      sta	AUDF0
+    740  f24d
+    741  f24d							; -------------------------------------------------------------
+    742  f24d							; Volume
+    743  f24d							; -------------------------------------------------------------
+    744  f24d
+    745  f24d		       a5 97		      lda	CollisionTimer
+    746  f24f		       c9 14		      cmp	#20
+    747  f251		       b0 07		      bcs	SoundVolumeHigh
+    748  f253
+    749  f253		       a9 08		      lda	#8
+    750  f255		       85 19		      sta	AUDV0
+    751  f257		       4c 5e f2 	      jmp	SoundVolumeDone
+    752  f25a
+    753  f25a
+    754  f25a				   SoundVolumeHigh
+    755  f25a
+    756  f25a		       a9 0f		      lda	#15
+    757  f25c		       85 19		      sta	AUDV0
+    758  f25e
+    759  f25e
+    760  f25e				   SoundVolumeDone
+    761  f25e
+    762  f25e		       c6 97		      dec	CollisionTimer
+    763  f260
+    764  f260		       60		      rts
+    765  f261
+    766  f261
+    767  f261				   CollisionSoundFinished
+    768  f261
+    769  f261							; -------------------------------------------------------------
+    770  f261							; DESLIGA O SOM
+    771  f261							; -------------------------------------------------------------
+    772  f261
+    773  f261		       a9 00		      lda	#0
+    774  f263		       85 19		      sta	AUDV0
+    775  f265		       85 15		      sta	AUDC0
+    776  f267
+    777  f267							; -------------------------------------------------------------
+    778  f267							; LIMPA O LATCH DE COLISÃO
+    779  f267							; -------------------------------------------------------------
+    780  f267
+    781  f267		       a5 2c		      lda	CXCLR
+    782  f269
+    783  f269							; -------------------------------------------------------------
+    784  f269							; VOLTA AO ESTADO INICIAL
+    785  f269							; -------------------------------------------------------------
+    786  f269
+    787  f269		       a9 00		      lda	#0
+    788  f26b		       85 96		      sta	CollisionState
+    789  f26d		       85 97		      sta	CollisionTimer
+    790  f26f		       85 94		      sta	CactusMoveAccumulator
+    791  f271		       85 95		      sta	CactusFrameMovement
+    792  f273
+    793  f273							; Velocidade inicial
+    794  f273		       a9 08		      lda	#8
+    795  f275		       85 92		      sta	CactusSpeed
+    796  f277
+    797  f277		       a9 00		      lda	#0
+    798  f279		       85 93		      sta	SpeedTimer
+    799  f27b
+    800  f27b							; Posição inicial do cacto
+    801  f27b		       a9 97		      lda	#$97
+    802  f27d		       85 8e		      sta	CactusHorizontalPos
+    803  f27f
+    804  f27f							; Padrão inicial
+    805  f27f		       a9 06		      lda	#6
+    806  f281		       85 90		      sta	CactusDesiredPattern
+    807  f283
+    808  f283		       a9 00		      lda	#0
+    809  f285		       85 8f		      sta	CactusActivePattern
+    810  f287
+    811  f287							; -------------------------------------------------------------
+    812  f287							; IMPORTANTE:
+    813  f287							; remove o estado "jogo rodando".
+    814  f287							; O jogo volta para a tela inicial.
+    815  f287							; -------------------------------------------------------------
+    816  f287
+    817  f287		       a5 8d		      lda	Helper
+    818  f289		       29 fd		      and	#%11111101
+    819  f28b		       85 8d		      sta	Helper
+    820  f28d
+    821  f28d							; Limpa novamente o latch depois de reposicionar o jogo
+    822  f28d		       a5 2c		      lda	CXCLR
+    823  f28f
+    824  f28f		       60		      rts
+    825  f290
+    826  f290							; ============================================================================
+    827  f290							; SUBROTINA: Posicionamento Horizontal
+    828  f290							; ============================================================================
+    829  f290
+    830  f290				   SetHorizPos
+    831  f290
+    832  f290		       85 02		      sta	WSYNC
+    833  f292
+    834  f292		       38		      sec
+    835  f293
+    836  f293				   SetHorizPosLoop
+    837  f293
+    838  f293		       e9 0f		      sbc	#15
+    839  f295		       b0 fc		      bcs	SetHorizPosLoop
+    840  f297
+    841  f297		       49 07		      eor	#7
+    842  f299
+    843  f299		       0a		      asl
+    844  f29a		       0a		      asl
+    845  f29b		       0a		      asl
+    846  f29c		       0a		      asl
+    847  f29d
+    848  f29d		       95 20		      sta	HMP0,X
+    849  f29f		       95 10		      sta	RESP0,X
+    850  f2a1
+    851  f2a1		       60		      rts
+    852  f2a2
+    853  f2a2
+    854  f2a2							; ============================================================================
+    855  f2a2							; SELEÇÃO DO PADRÃO DO CACTO
+    856  f2a2							; ============================================================================
+    857  f2a2
+    858  f2a2				   SelectCactusDesiredPattern
+    859  f2a2
+    860  f2a2		       e6 8c		      inc	Seed
+    861  f2a4
+    862  f2a4		       a5 8c		      lda	Seed
+    863  f2a6		       29 07		      and	#$07
+    864  f2a8
+    865  f2a8		       aa		      tax
+    866  f2a9
+    867  f2a9		       bd af f2 	      lda	CactusPatternTable,X
+    868  f2ac
+    869  f2ac		       85 90		      sta	CactusDesiredPattern
+    870  f2ae
+    871  f2ae		       60		      rts
+    872  f2af
+    873  f2af
+    874  f2af							; ============================================================================
+    875  f2af							; TABELA DE PADRÕES PERMITIDOS PARA O CACTO
+    876  f2af							; ============================================================================
+    877  f2af
+    878  f2af				   CactusPatternTable
+    879  f2af
+    880  f2af		       00		      .byte.b	$00	; Opção 0: 1 Cacto normal
+    881  f2b0		       02		      .byte.b	$02	; Opção 1: 2 Cactos distância média
+    882  f2b1		       05		      .byte.b	$05	; Opção 3: 1 Cacto Grande
+    883  f2b2		       04		      .byte.b	$04	; Opção 5: 2 Cactos distância longa
+    884  f2b3		       06		      .byte.b	$06	; Opção 6: 3 Cactos distância média
+    885  f2b4		       06		      .byte.b	$06	; Opção 6: 3 Cactos distância média
+    886  f2b5		       00		      .byte.b	$00	; Opção 0 repetida
+    887  f2b6		       02		      .byte.b	$02	; Opção 1 repetida
+    888  f2b7
+    889  f2b7
 ------- FILE dino.asm LEVEL 2 PASS 2
-      0  f173					      include	"dino.asm"
-      1  f173				   AnimateDinoSprite
-      2  f173
-      3  f173		       c6 89		      dec	DinoAnimateSpriteDelay
-      4  f175		       d0 0a		      bne	KeepDinoSprite
-      5  f177
-      6  f177		       a5 88		      lda	DinoAnimateSpriteBitmap
-      7  f179		       49 01		      eor	#1
-      8  f17b		       85 88		      sta	DinoAnimateSpriteBitmap
-      9  f17d		       a9 08		      lda	#DinoAnimateSpriteFramesDelay
-     10  f17f		       85 89		      sta	DinoAnimateSpriteDelay
-     11  f181
-     12  f181				   KeepDinoSprite
-     13  f181
-     14  f181		       a5 88		      lda	DinoAnimateSpriteBitmap
-     15  f183		       d0 0b		      bne	DinoBitmap2
-     16  f185
-     17  f185		       a9 e3		      lda	#<Dino0
-     18  f187		       85 85		      sta	DinoBitmapLocation
-     19  f189		       a9 f1		      lda	#>Dino0
-     20  f18b		       85 86		      sta	DinoBitmapLocation + 1
-     21  f18d		       4c 98 f1 	      jmp	DinoBitmapChooseEnd
-     22  f190
-     23  f190				   DinoBitmap2
-     24  f190
-     25  f190		       a9 f2		      lda	#<Dino1
-     26  f192		       85 85		      sta	DinoBitmapLocation
-     27  f194		       a9 f1		      lda	#>Dino1
-     28  f196		       85 86		      sta	DinoBitmapLocation + 1
-     29  f198
-     30  f198				   DinoBitmapChooseEnd
-     31  f198
-     32  f198		       60		      rts
-     33  f199
-     34  f199
-     35  f199				   HandleDinoJump
-     36  f199
-     37  f199		       a5 80		      lda	DinoVerticalVelocity
-     38  f19b		       65 81		      adc	DinoVerticalPos
-     39  f19d		       85 81		      sta	DinoVerticalPos
-     40  f19f
-     41  f19f		       a9 37		      lda	#55
-     42  f1a1		       65 82		      adc	DinoVerticalDelay
-     43  f1a3		       c9 ff		      cmp	#$ff
-     44  f1a5		       50 06		      bvc	DontAdjustVerticalVelocity
-     45  f1a7
-     46  f1a7		       a5 80		      lda	DinoVerticalVelocity
-     47  f1a9		       69 01		      adc	#1
-     48  f1ab		       85 80		      sta	DinoVerticalVelocity
-     49  f1ad
-     50  f1ad				   DontAdjustVerticalVelocity
-     51  f1ad
-     52  f1ad		       85 82		      sta	DinoVerticalDelay
-     53  f1af
-     54  f1af							; Check if Dino is touching the ground
-     55  f1af		       a5 81		      lda	DinoVerticalPos
-     56  f1b1		       c9 41		      cmp	#GroundVerticalPos
-     57  f1b3		       90 2d		      bcc	DinoIsJumping
-     58  f1b5
-     59  f1b5		       a9 00		      lda	#0
-     60  f1b7		       85 82		      sta	DinoVerticalDelay
-     61  f1b9
-     62  f1b9		       a9 41		      lda	#GroundVerticalPos
-     63  f1bb		       85 81		      sta	DinoVerticalPos
-     64  f1bd
-     65  f1bd							; Check if button is pressed (1 = not pressed)
-     66  f1bd		       a9 80		      lda	#%10000000
-     67  f1bf		       25 0c		      and	INPT4
-     68  f1c1		       d0 15		      bne	ButtonNotPressed
-     69  f1c3
-     70  f1c3							; Reset Seed for pseudo-random value
-     71  f1c3		       a9 00		      lda	#0
-     72  f1c5		       85 8c		      sta	Seed
-     73  f1c7
-     74  f1c7							; Check if button is locked
-     75  f1c7		       a9 01		      lda	#1
-     76  f1c9		       25 87		      and	VarButtonLock
-     77  f1cb		       d0 0b		      bne	ButtonIsLocked
-     78  f1cd
-     79  f1cd		       a9 01		      lda	#1
-     80  f1cf		       85 87		      sta	VarButtonLock
-     81  f1d1
-     82  f1d1		       a9 fb		      lda	#-5
-     83  f1d3		       85 80		      sta	DinoVerticalVelocity
-     84  f1d5
-     85  f1d5		       4c e2 f1 	      jmp	EndButtonCheck
-     86  f1d8
-     87  f1d8				   ButtonIsLocked
-     88  f1d8				   ButtonNotPressed
-     89  f1d8
-     90  f1d8							; Check if button is pressed
-     91  f1d8		       a9 80		      lda	#%10000000
-     92  f1da		       25 0c		      and	INPT4
-     93  f1dc		       f0 04		      beq	ButtonStillPressed
-     94  f1de
-     95  f1de		       a9 00		      lda	#0
-     96  f1e0		       85 87		      sta	VarButtonLock
-     97  f1e2
-     98  f1e2				   DinoIsJumping
-     99  f1e2				   ButtonStillPressed
-    100  f1e2				   EndButtonCheck
-    101  f1e2
-    102  f1e2		       60		      rts
-------- FILE main_.asm
+      0  f2b7					      include	"dino.asm"
+      1  f2b7				   AnimateDinoSprite
+      2  f2b7
+      3  f2b7		       c6 89		      dec	DinoAnimateSpriteDelay
+      4  f2b9		       d0 0a		      bne	KeepDinoSprite
+      5  f2bb
+      6  f2bb		       a5 88		      lda	DinoAnimateSpriteBitmap
+      7  f2bd		       49 01		      eor	#1
+      8  f2bf		       85 88		      sta	DinoAnimateSpriteBitmap
+      9  f2c1		       a9 08		      lda	#DinoAnimateSpriteFramesDelay
+     10  f2c3		       85 89		      sta	DinoAnimateSpriteDelay
+     11  f2c5
+     12  f2c5				   KeepDinoSprite
+     13  f2c5
+     14  f2c5		       a5 88		      lda	DinoAnimateSpriteBitmap
+     15  f2c7		       d0 0b		      bne	DinoBitmap2
+     16  f2c9
+     17  f2c9		       a9 27		      lda	#<Dino0
+     18  f2cb		       85 85		      sta	DinoBitmapLocation
+     19  f2cd		       a9 f3		      lda	#>Dino0
+     20  f2cf		       85 86		      sta	DinoBitmapLocation + 1
+     21  f2d1		       4c dc f2 	      jmp	DinoBitmapChooseEnd
+     22  f2d4
+     23  f2d4				   DinoBitmap2
+     24  f2d4
+     25  f2d4		       a9 36		      lda	#<Dino1
+     26  f2d6		       85 85		      sta	DinoBitmapLocation
+     27  f2d8		       a9 f3		      lda	#>Dino1
+     28  f2da		       85 86		      sta	DinoBitmapLocation + 1
+     29  f2dc
+     30  f2dc				   DinoBitmapChooseEnd
+     31  f2dc
+     32  f2dc		       60		      rts
+     33  f2dd
+     34  f2dd
+     35  f2dd				   HandleDinoJump
+     36  f2dd
+     37  f2dd		       a5 80		      lda	DinoVerticalVelocity
+     38  f2df		       65 81		      adc	DinoVerticalPos
+     39  f2e1		       85 81		      sta	DinoVerticalPos
+     40  f2e3
+     41  f2e3		       a9 3f		      lda	#63
+     42  f2e5		       65 82		      adc	DinoVerticalDelay
+     43  f2e7		       c9 ff		      cmp	#$ff
+     44  f2e9		       50 06		      bvc	DontAdjustVerticalVelocity
+     45  f2eb
+     46  f2eb		       a5 80		      lda	DinoVerticalVelocity
+     47  f2ed		       69 01		      adc	#1
+     48  f2ef		       85 80		      sta	DinoVerticalVelocity
+     49  f2f1
+     50  f2f1				   DontAdjustVerticalVelocity
+     51  f2f1
+     52  f2f1		       85 82		      sta	DinoVerticalDelay
+     53  f2f3
+     54  f2f3							; Check if Dino is touching the ground
+     55  f2f3		       a5 81		      lda	DinoVerticalPos
+     56  f2f5		       c9 41		      cmp	#GroundVerticalPos
+     57  f2f7		       90 2d		      bcc	DinoIsJumping
+     58  f2f9
+     59  f2f9		       a9 00		      lda	#0
+     60  f2fb		       85 82		      sta	DinoVerticalDelay
+     61  f2fd
+     62  f2fd		       a9 41		      lda	#GroundVerticalPos
+     63  f2ff		       85 81		      sta	DinoVerticalPos
+     64  f301
+     65  f301							; Check if button is pressed (1 = not pressed)
+     66  f301		       a9 80		      lda	#%10000000
+     67  f303		       25 0c		      and	INPT4
+     68  f305		       d0 15		      bne	ButtonNotPressed
+     69  f307
+     70  f307							; Reset Seed for pseudo-random value
+     71  f307		       a9 00		      lda	#0
+     72  f309		       85 8c		      sta	Seed
+     73  f30b
+     74  f30b							; Check if button is locked
+     75  f30b		       a9 01		      lda	#1
+     76  f30d		       25 87		      and	VarButtonLock
+     77  f30f		       d0 0b		      bne	ButtonIsLocked
+     78  f311
+     79  f311		       a9 01		      lda	#1
+     80  f313		       85 87		      sta	VarButtonLock
+     81  f315
+     82  f315		       a9 fb		      lda	#-5
+     83  f317		       85 80		      sta	DinoVerticalVelocity
+     84  f319
+     85  f319		       4c 26 f3 	      jmp	EndButtonCheck
+     86  f31c
+     87  f31c				   ButtonIsLocked
+     88  f31c				   ButtonNotPressed
+     89  f31c
+     90  f31c							; Check if button is pressed
+     91  f31c		       a9 80		      lda	#%10000000
+     92  f31e		       25 0c		      and	INPT4
+     93  f320		       f0 04		      beq	ButtonStillPressed
+     94  f322
+     95  f322		       a9 00		      lda	#0
+     96  f324		       85 87		      sta	VarButtonLock
+     97  f326
+     98  f326				   DinoIsJumping
+     99  f326				   ButtonStillPressed
+    100  f326				   EndButtonCheck
+    101  f326
+    102  f326		       60		      rts
+------- FILE dino_game.asm
 ------- FILE data/bitmaps.asm LEVEL 2 PASS 2
-      0  f1e3					      include	"data/bitmaps.asm"
-      1  f1e3				   Dino0
-      2  f1e3		       00		      .byte.b	#0
-      3  f1e4		       06		      .byte.b	#%00000110	;--
-      4  f1e5		       34		      .byte.b	#%00110100	;--
-      5  f1e6		       24		      .byte.b	#%00100100	;--
-      6  f1e7		       78		      .byte.b	#%01111000	;--
-      7  f1e8		       f8		      .byte.b	#%11111000	;--
-      8  f1e9		       b8		      .byte.b	#%10111000	;--
-      9  f1ea		       38		      .byte.b	#%00111000	;--
-     10  f1eb		       3f		      .byte.b	#%00111111	;--
-     11  f1ec		       3c		      .byte.b	#%00111100	;--
-     12  f1ed		       1c		      .byte.b	#%00011100	;--
-     13  f1ee		       1f		      .byte.b	#%00011111	;--
-     14  f1ef		       0f		      .byte.b	#%00001111	;--
-     15  f1f0		       05		      .byte.b	#%00000101	;--
-     16  f1f1		       06		      .byte.b	#%00000110	;--
-     17  f1f2				   Dino1
-     18  f1f2		       00		      .byte.b	#0
-     19  f1f3		       30		      .byte.b	#%00110000	;--
-     20  f1f4		       26		      .byte.b	#%00100110	;--
-     21  f1f5		       24		      .byte.b	#%00100100	;--
-     22  f1f6		       7c		      .byte.b	#%01111100	;--
-     23  f1f7		       f8		      .byte.b	#%11111000	;--
-     24  f1f8		       b8		      .byte.b	#%10111000	;--
-     25  f1f9		       38		      .byte.b	#%00111000	;--
-     26  f1fa		       3f		      .byte.b	#%00111111	;--
-     27  f1fb		       3c		      .byte.b	#%00111100	;--
-     28  f1fc		       1c		      .byte.b	#%00011100	;--
-     29  f1fd		       1f		      .byte.b	#%00011111	;--
-     30  f1fe		       0f		      .byte.b	#%00001111	;--
-     31  f1ff		       05		      .byte.b	#%00000101	;--
-     32  f200		       06		      .byte.b	#%00000110	;--
-     33  f201				   Cactus
-     34  f201		       00		      .byte.b	#%00000000	;--
-     35  f202		       10		      .byte.b	#%00010000	;--
-     36  f203		       10		      .byte.b	#%00010000	;--
-     37  f204		       10		      .byte.b	#%00010000	;--
-     38  f205		       70		      .byte.b	#%01110000	;--
-     39  f206		       5c		      .byte.b	#%01011100	;--
-     40  f207		       54		      .byte.b	#%01010100	;--
-     41  f208		       14		      .byte.b	#%00010100	;--
-     42  f209		       10		      .byte.b	#%00010000	;--
-     43  f20a		       00		      .byte.b	#%00000000	;--
-     44  f20b		       00		      .byte.b	#%00000000	;--
-     45  f20c		       00		      .byte.b	#%00000000	;--
-     46  f20d		       00		      .byte.b	#%00000000	;--
-     47  f20e		       00		      .byte.b	#%00000000	;--
-     48  f20f		       00		      .byte.b	#%00000000	;--
-     49  f210		       00		      .byte.b	#%00000000	;--
-     50  f211				   Bird0
-     51  f211		       00		      .byte.b	#%00000000	;--
-     52  f212		       00		      .byte.b	#%00000000	;--
-     53  f213		       00		      .byte.b	#%00000000	;--
-     54  f214		       00		      .byte.b	#%00000000	;--
-     55  f215		       00		      .byte.b	#%00000000	;--
-     56  f216		       1e		      .byte.b	#%00011110	;--
-     57  f217		       3c		      .byte.b	#%00111100	;--
-     58  f218		       78		      .byte.b	#%01111000	;--
-     59  f219		       bf		      .byte.b	#%10111111	;--
-     60  f21a		       40		      .byte.b	#%01000000	;--
-     61  f21b		       00		      .byte.b	#%00000000	;--
-     62  f21c		       00		      .byte.b	#%00000000	;--
-     63  f21d		       00		      .byte.b	#%00000000	;--
-     64  f21e		       00		      .byte.b	#%00000000	;--
-     65  f21f		       00		      .byte.b	#%00000000	;--
-     66  f220		       00		      .byte.b	#%00000000	;--
-     67  f221				   Bird1
-     68  f221		       00		      .byte.b	#%00000000	;--
-     69  f222		       00		      .byte.b	#%00000000	;--
-     70  f223		       00		      .byte.b	#%00000000	;--
-     71  f224		       00		      .byte.b	#%00000000	;--
-     72  f225		       00		      .byte.b	#%00000000	;--
-     73  f226		       00		      .byte.b	#%00000000	;--
-     74  f227		       30		      .byte.b	#%00110000	;--
-     75  f228		       7c		      .byte.b	#%01111100	;--
-     76  f229		       bf		      .byte.b	#%10111111	;--
-     77  f22a		       58		      .byte.b	#%01011000	;--
-     78  f22b		       0c		      .byte.b	#%00001100	;--
-     79  f22c		       06		      .byte.b	#%00000110	;--
-     80  f22d		       00		      .byte.b	#%00000000	;--
-     81  f22e		       00		      .byte.b	#%00000000	;--
-     82  f22f		       00		      .byte.b	#%00000000	;--
-     83  f230		       00		      .byte.b	#%00000000	;--
-------- FILE main_.asm
-    367  f231
-    368  f231
-    369  fffc					      org	$FFFC
-    370  fffc		       00 f0		      .word.w	Start
-    371  fffe		       00 f0		      .word.w	Start
+      0  f327					      include	"data/bitmaps.asm"
+      1  f327				   Dino0
+      2  f327		       00		      .byte.b	#0
+      3  f328		       06		      .byte.b	#%00000110	;--
+      4  f329		       34		      .byte.b	#%00110100	;--
+      5  f32a		       24		      .byte.b	#%00100100	;--
+      6  f32b		       78		      .byte.b	#%01111000	;--
+      7  f32c		       f8		      .byte.b	#%11111000	;--
+      8  f32d		       b8		      .byte.b	#%10111000	;--
+      9  f32e		       38		      .byte.b	#%00111000	;--
+     10  f32f		       3f		      .byte.b	#%00111111	;--
+     11  f330		       3c		      .byte.b	#%00111100	;--
+     12  f331		       1c		      .byte.b	#%00011100	;--
+     13  f332		       1f		      .byte.b	#%00011111	;--
+     14  f333		       0f		      .byte.b	#%00001111	;--
+     15  f334		       05		      .byte.b	#%00000101	;--
+     16  f335		       06		      .byte.b	#%00000110	;--
+     17  f336				   Dino1
+     18  f336		       00		      .byte.b	#0
+     19  f337		       30		      .byte.b	#%00110000	;--
+     20  f338		       26		      .byte.b	#%00100110	;--
+     21  f339		       24		      .byte.b	#%00100100	;--
+     22  f33a		       7c		      .byte.b	#%01111100	;--
+     23  f33b		       f8		      .byte.b	#%11111000	;--
+     24  f33c		       b8		      .byte.b	#%10111000	;--
+     25  f33d		       38		      .byte.b	#%00111000	;--
+     26  f33e		       3f		      .byte.b	#%00111111	;--
+     27  f33f		       3c		      .byte.b	#%00111100	;--
+     28  f340		       1c		      .byte.b	#%00011100	;--
+     29  f341		       1f		      .byte.b	#%00011111	;--
+     30  f342		       0f		      .byte.b	#%00001111	;--
+     31  f343		       05		      .byte.b	#%00000101	;--
+     32  f344		       06		      .byte.b	#%00000110	;--
+     33  f345				   Cactus
+     34  f345		       00		      .byte.b	#%00000000	;--
+     35  f346		       10		      .byte.b	#%00010000	;--
+     36  f347		       10		      .byte.b	#%00010000	;--
+     37  f348		       10		      .byte.b	#%00010000	;--
+     38  f349		       70		      .byte.b	#%01110000	;--
+     39  f34a		       5c		      .byte.b	#%01011100	;--
+     40  f34b		       54		      .byte.b	#%01010100	;--
+     41  f34c		       14		      .byte.b	#%00010100	;--
+     42  f34d		       10		      .byte.b	#%00010000	;--
+     43  f34e		       00		      .byte.b	#%00000000	;--
+     44  f34f		       00		      .byte.b	#%00000000	;--
+     45  f350		       00		      .byte.b	#%00000000	;--
+     46  f351		       00		      .byte.b	#%00000000	;--
+     47  f352		       00		      .byte.b	#%00000000	;--
+     48  f353		       00		      .byte.b	#%00000000	;--
+     49  f354		       00		      .byte.b	#%00000000	;--
+     50  f355				   Bird0
+     51  f355		       00		      .byte.b	#%00000000	;--
+     52  f356		       00		      .byte.b	#%00000000	;--
+     53  f357		       00		      .byte.b	#%00000000	;--
+     54  f358		       00		      .byte.b	#%00000000	;--
+     55  f359		       00		      .byte.b	#%00000000	;--
+     56  f35a		       1e		      .byte.b	#%00011110	;--
+     57  f35b		       3c		      .byte.b	#%00111100	;--
+     58  f35c		       78		      .byte.b	#%01111000	;--
+     59  f35d		       bf		      .byte.b	#%10111111	;--
+     60  f35e		       40		      .byte.b	#%01000000	;--
+     61  f35f		       00		      .byte.b	#%00000000	;--
+     62  f360		       00		      .byte.b	#%00000000	;--
+     63  f361		       00		      .byte.b	#%00000000	;--
+     64  f362		       00		      .byte.b	#%00000000	;--
+     65  f363		       00		      .byte.b	#%00000000	;--
+     66  f364		       00		      .byte.b	#%00000000	;--
+     67  f365				   Bird1
+     68  f365		       00		      .byte.b	#%00000000	;--
+     69  f366		       00		      .byte.b	#%00000000	;--
+     70  f367		       00		      .byte.b	#%00000000	;--
+     71  f368		       00		      .byte.b	#%00000000	;--
+     72  f369		       00		      .byte.b	#%00000000	;--
+     73  f36a		       00		      .byte.b	#%00000000	;--
+     74  f36b		       30		      .byte.b	#%00110000	;--
+     75  f36c		       7c		      .byte.b	#%01111100	;--
+     76  f36d		       bf		      .byte.b	#%10111111	;--
+     77  f36e		       58		      .byte.b	#%01011000	;--
+     78  f36f		       0c		      .byte.b	#%00001100	;--
+     79  f370		       06		      .byte.b	#%00000110	;--
+     80  f371		       00		      .byte.b	#%00000000	;--
+     81  f372		       00		      .byte.b	#%00000000	;--
+     82  f373		       00		      .byte.b	#%00000000	;--
+     83  f374		       00		      .byte.b	#%00000000	;--
+------- FILE dino_game.asm
+    892  f375
+    893  f375
+    894  fffc					      org	$FFFC
+    895  fffc
+    896  fffc		       00 f0		      .word.w	Start
+    897  fffe		       00 f0		      .word.w	Start
